@@ -57,3 +57,10 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# IntelliJ
+.idea/
+*.iml
+target/
+APDescription.txt
+MTPs-Main-Container.txt

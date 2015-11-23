@@ -1,0 +1,70 @@
+% Very simple template for lab reports. Most common packages are already included.
+\documentclass[a4paper, 11pt]{article}
+\usepackage[utf8]{inputenc} % Change according your file encoding
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\title{\textbf{Distributed Artificial Intelligence and Intelligent Agents Homework 1}}
+\author{KTH Royal Institute of Technology \\ 
+		School of Information and Communication Technology \\
+		Student:Fanti Machmount Al Samisti (fmas@kth.se) \\
+		Student:August Bonds (bonds@kth.se)}
+
+\begin{document}
+	
+\maketitle
+
+\section{Introduction}
+The purpose of this lab was to learn the basics of the Java Agent Development framework by implementing a three-agent solution for the case of tourists asking for interesting museum artifacts to see. Our solution implemnts several simple and advanced behaviors to achieve this. 
+
+This report serves primarily as an explanation of our solution, and some reasoning behind. Attached is all source code with descriptional comments.
+
+\section{Agents and Behaviors}
+\begin{figure}
+	\begin{center}
+		\includegraphics[width=\textwidth]{agentsandbehaviors.jpg}
+		\caption{An overview of available agents and implemented behavior types}
+		\label{fig:results1}
+	\end{center}
+\end{figure}
+\subsection{ProfilerAgent}
+The job of the profiler agent is to serve a tourist wanting to exhibit some available museum artifacts according to his interests. The profiler communicates with the platform to get a list of interesting artifacts, and with the curator to get detailed descriptions for those IDs.
+
+To accomplish this our profiler agent implements three main behaviors.
+\begin{enumerate}
+\item RequestTourGuide(OneShotBehavior) Sends a request for artifact IDs to the platform.
+\item WaitArtifactIDsFromPlatform(MsgReceiver) Waits for a message containing the platform IDs from the platform
+\item AskCuratorForArtifacts(SimpleAchieveREInitiator) Interacts with the curator to get detailed information for IDs received from the platform.
+\end{enumerate}
+
+The profiler wraps these three behaviors in a SequentialBehavior inside a TickerBehavior (TourSpawner). The ticker spawns a new interaction with a timer to simulate multiple tourists. At each tick, a sequential behavior is added to the agent with the previously described behaviors in the sequence presented. A tourist requests tour, the profiler sends a request to the platform for artifacts matching the tourist interests, waits for a reply and then uses the IDs in the reply to ask the curator for artifacts descriptions.
+
+\subsection{PlatformAgent}
+The platform agent serves profilers lists of interesting artifacts by querying the curator. It implements three different behaviors fit inside an FSMBehavior.
+
+\begin{enumerate}
+\item WaitRequestsFromProfiler(MsgReceiver) Wait for requests from a profiler for artifact IDs.
+\item AskCurator(SimpleAchieveREInitiator) Interacts with the curator to get a list of available artifacts given interests provided by the profiler 
+\item SendItemIDs(OneShotBehavior) Sends the list of available artifacts back to the profiler.
+\end{enumerate}
+
+Each behavior stores information in member variables for the next behavior to use. Allowed transitions are 1 to 2, 2 to 3 and 3 to 1, in a cycle. The MsgReceiver stores the requesting agent and the list of interests, the REInitiator stores the 
+artifact IDs and the OneShotBehavior sends the artifact IDs back to the requesting agent.
+
+\subsection{CuratorAgent}
+The curator agent responds to requests from either platforms or profilers. It only implements one behavior ArtifactRequestREResponder. Using comments on envelopes wrapped around incoming requests for artifact IDs for interests (from platform), or requests for artifact descriptions given artifact IDs (from profiler) we determine how to respond.
+
+This ArtifactRequestREResponder behavior is wrapped in an FSM with only one cyclic state.
+
+\section{Directory Facilitator}
+We use the Directory Facilitator for agents to discover each other.
+
+A curator agent registers two available services: "artifact-search" for requests for artifacts given interests, and "artifact-lookup" for requests for artifact descriptions given a list of artifacts. A platform registers one available service: "provide-tour" for requests for artifacts given interests.
+
+When sending requests, the DF is queried for a list of available agents for the given service. In our implementation we assume one agent of each type, so we use the first agent in the list. For multiple platforms, the implementation of the profiler could be to extended to query all platforms registered using the first reply, to improve the experience for the tourist.
+
+\section{Evaluation}
+The lab served its purpose of giving an good overview of JADE. Once the first hurdles of understanding how agents schedule behaviors and how REInitiators/REResponders work, it turned out to be quite achievable.
+\end{document}
