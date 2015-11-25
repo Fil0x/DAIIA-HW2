@@ -29,8 +29,6 @@ public class ProfilerAgent extends Agent {
         super();
         // This behaviour will be used to create random tourists every SPAWN_TIME
         addBehaviour(new TourSpawner(this, SPAWN_TIME));
-        // The total transaction timeout, we can't wait forever for the curator
-        // addBehaviour(new MyWakerBehavior(this, TOTAL_TIME));
     }
 
 
@@ -50,8 +48,6 @@ public class ProfilerAgent extends Agent {
         @Override
         public void onStart() {
             System.out.println("Agent:" + getAgent().getName() + "[Ticker:" + getPeriod() + "] is ready!");
-            //ACLMessage initiationMessage
-            //RequestTourGuide initiator = new RequestTourGuide(getAgent(), );
         }
 
         @Override
