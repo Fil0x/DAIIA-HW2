@@ -54,10 +54,17 @@ public class CuratorAgent extends Agent {
         sd2.setName("provide-artifact-lookup");
         sd2.addOntologies("request-iteminfo");
 
+        // Register interest for auctions
+        ServiceDescription sd3 = new ServiceDescription();
+        sd3.setType("auction-bidder");
+        sd3.setName("auction-participator");
+        sd3.addOntologies("bid-in-auctions");
+
         DFAgentDescription dfd = new DFAgentDescription();
         dfd.setName(getAID());
         dfd.addServices(sd1);
         dfd.addServices(sd2);
+        dfd.addServices(sd3);
         try {
             DFService.register(this, dfd);
         } catch (FIPAException e) {

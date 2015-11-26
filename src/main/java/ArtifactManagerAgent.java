@@ -1,5 +1,6 @@
 import jade.core.AID;
 import jade.core.Agent;
+import jade.core.behaviours.FSMBehaviour;
 import jade.core.behaviours.OneShotBehaviour;
 import jade.core.behaviours.SequentialBehaviour;
 import jade.core.behaviours.TickerBehaviour;
@@ -7,14 +8,18 @@ import jade.domain.DFService;
 import jade.domain.FIPAAgentManagement.DFAgentDescription;
 import jade.domain.FIPAAgentManagement.ServiceDescription;
 import jade.domain.FIPAException;
+import jade.domain.FIPANames;
 import jade.lang.acl.ACLMessage;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ArtifactManagerAgent extends Agent {
 
+    private ArrayList<AID> buyers;
     private int SPAWN_TIME = 3000;
     private static final String NAME = "(ArtifactManager)";
+    private FSMBehaviour fsm;
 
     public ArtifactManagerAgent() {
         super();
@@ -42,40 +47,66 @@ public class ArtifactManagerAgent extends Agent {
 
         @Override
         protected void onTick() {
-            /*
-             The sequential behaviour simulates the procedure to spawn an auction and publish it.
-             1 - Start the auction
-             */
-            SequentialBehaviour sb = new SequentialBehaviour(getAgent());
-            sb.addSubBehaviour(new StartAuction());
-            getAgent().addBehaviour(sb);
+            // Start a new auction
+          //  getAgent().addBehaviour(new StartAuction());
+            fsm = new FSMBehaviour();
+            fsm.registerFirstState(new StartAuction(getAgent()), "A");
+            fsm.registerLastState(new CallForProposal(getAgent()), "B");
+
+            fsm.registerDefaultTransition("A", "B");
+
+            getAgent().addBehaviour(fsm);
         }
     }
 
     private class StartAuction extends OneShotBehaviour {
-        public StartAuction(){
-            super();
+        public StartAuction(Agent a){
+            super(a);
         }
 
         @Override
         public void action() {
             try {
-                // Get the platform AID and ask the DF about the presence of the platform.
-                AID platfom;
+                System.out.println(NAME + ": soon starting a new dutch auction");
+                buyers = new ArrayList<>();
+                // Wait for the other agents to boot
+                doWait(100);
+                // Get the interested buyers-curators
                 DFAgentDescription dfd = new DFAgentDescription();
                 ServiceDescription sd = new ServiceDescription();
-                sd.setType("provide-tour");
+                sd.setType("auction-bidder");
                 dfd.addServices(sd);
                 DFAgentDescription[] result = DFService.search(getAgent(), dfd);
+                // Create a new message to broadcast to the interested bidders
+                ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
+                msg.setSender(getAID());
+                msg.setContent("inform-start-of-auction");
+                msg.setProtocol(FIPANames.InteractionProtocol.FIPA_DUTCH_AUCTION);
                 if (result.length>0) {
                     for(DFAgentDescription r: result) {
-                        System.out.println(NAME + ": STARTED");
-                        System.out.println(r.getName().getName());
+                        msg.addReceiver(r.getName());
+                        buyers.add(r.getName());
                     }
                 }
+                send(msg);
         } catch (FIPAException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    private class CallForProposal extends OneShotBehaviour {
+
+        public CallForProposal(Agent a) {
+            super(a);
+        }
+
+        @Override
+        public void action() {
+            ACLMessage msg = new ACLMessage(ACLMessage.CFP);
+            msg.setSender(getAgent().getAID());
+            msg.setContent("call-for-proposal");
+            msg.setProtocol();
         }
     }
 }
