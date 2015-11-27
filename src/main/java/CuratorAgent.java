@@ -19,8 +19,7 @@ import java.util.List;
 
 
 public class CuratorAgent extends Agent {
-    private static final String NAME = "curator";
-    private final FSMBehaviour fsm;
+    private static final String NAME = "(curator)";
 
     private String senderType;
     private AID sender;
@@ -31,13 +30,11 @@ public class CuratorAgent extends Agent {
     public CuratorAgent(){
         super();
 
-        MessageTemplate mt = MessageTemplate.MatchProtocol(FIPANames.InteractionProtocol.FIPA_REQUEST);
-        fsm = new FSMBehaviour(this);
-        fsm.registerFirstState(new ArtifactRequestREResponder (this,mt), "A");
+        MessageTemplate mtartifact = MessageTemplate.MatchProtocol(FIPANames.InteractionProtocol.FIPA_REQUEST);
+        MessageTemplate mtauction = MessageTemplate.MatchProtocol(FIPANames.InteractionProtocol.FIPA_DUTCH_AUCTION);
 
-        fsm.registerDefaultTransition("A", "A");
-
-        addBehaviour(fsm);
+        addBehaviour(new ArtifactRequestREResponder(this, mtartifact));
+        addBehaviour(new AuctionREResponder(this, mtauction));
     }
 
     protected void setup(){
@@ -130,6 +127,52 @@ public class CuratorAgent extends Agent {
             reply.setProtocol(FIPANames.InteractionProtocol.FIPA_REQUEST);
 
             return reply;
+        }
+    }
+
+    private class AuctionREResponder extends SimpleAchieveREResponder{
+
+        private MessageTemplate mt;
+
+        public AuctionREResponder(Agent a, MessageTemplate mt) {
+            super(a, mt);
+            this.mt = mt;
+        }
+
+        protected ACLMessage prepareResponse(ACLMessage request){
+            //first message is a start auction message
+            AID auctioneer = request.getSender();
+
+            //send confirm
+            ACLMessage interested = new ACLMessage(ACLMessage.AGREE);
+            interested.addReceiver(auctioneer);
+            send(interested);
+
+            //handle CFP
+            ACLMessage cfpOrComplete;
+            while(true) {
+                cfpOrComplete = blockingReceive(mt);
+                String comments = cfpOrComplete.getEnvelope().getComments();
+                if("cfp".equals(comments)){
+                    System.out.println(NAME + " got cfp");
+                    ACLMessage bidOrReject = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+                    send(bidOrReject);
+                } else if ("win".equals(comments)) {
+                    break;
+                } else if ("end".equals(comments)){
+                    break;
+                }
+            }
+
+            //handle end
+
+            ACLMessage reply = request.createReply();
+            return reply;
+        }
+
+
+        protected ACLMessage prepareResultNotification(ACLMessage request, ACLMessage response) {
+            return null;
         }
     }
 }
