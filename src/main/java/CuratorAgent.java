@@ -80,15 +80,15 @@ public class CuratorAgent extends Agent {
 
         protected ACLMessage prepareResponse(ACLMessage request){
             ACLMessage reply = request.createReply();
-            System.out.println("(Curator) preparing response to request from: " + request.getSender().getLocalName());
-            //System.out.println("(Curator) with content: " + request.getContent());
+            //System.out.println("(Curator) preparing response to request from: " + request.getSender().getLocalName());
+            ////System.out.println("(Curator) with content: " + request.getContent());
             senderType = request.getEnvelope().getComments();
             if ("platform".equals(senderType)){
-                System.out.println("(Curator) Message received from a platform called: " + request.getSender().getLocalName());
+                //System.out.println("(Curator) Message received from a platform called: " + request.getSender().getLocalName());
                 reply.setPerformative(ACLMessage.AGREE);
 
             } else if ("profiler".equals(senderType)){
-                System.out.println("(Curator) Message received from a profiler called: "+ request.getSender().getLocalName());
+                //System.out.println("(Curator) Message received from a profiler called: "+ request.getSender().getLocalName());
                 reply.setPerformative(ACLMessage.AGREE);
 
             } else {

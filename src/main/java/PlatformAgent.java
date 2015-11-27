@@ -82,7 +82,7 @@ public class PlatformAgent extends Agent {
 
         @Override
         protected void handleMessage(ACLMessage msg) {
-            System.out.println("(Platform) Received msg");
+            //System.out.println("(Platform) Received msg");
             /*
               Since we don't have intra behaviour communication we have to store the received
               information for the next behaviour in line to pick them up.
@@ -91,7 +91,7 @@ public class PlatformAgent extends Agent {
             conversationID = msg.getConversationId();
             try {
                 user = (User) msg.getContentObject();
-                System.out.println("(Platform) Got user with name: " + user.getFullname());
+                //System.out.println("(Platform) Got user with name: " + user.getFullname());
             } catch (UnreadableException e) {
                 System.err.println("(Platform) Could not deserialize user object");
             }
@@ -113,7 +113,7 @@ public class PlatformAgent extends Agent {
         protected ACLMessage prepareRequest(ACLMessage msg) {
             try {
                 // Get the platform AID
-                System.out.println("(Platform) Initiating conversation");
+                //System.out.println("(Platform) Initiating conversation");
                 AID curator;
                 DFAgentDescription dfd = new DFAgentDescription();
                 ServiceDescription sd = new ServiceDescription();
@@ -146,13 +146,13 @@ public class PlatformAgent extends Agent {
 
         @Override
         protected void handleAgree(ACLMessage msg) {
-            System.out.println("Platform: Received AGREE");
+            //System.out.println("Platform: Received AGREE");
         }
 
         @Override
         protected void handleInform(ACLMessage msg) {
 
-            System.out.println("Platform: Received INFORM");
+            //System.out.println("Platform: Received INFORM");
             // Store it in the class for the SendItemIDS to send them to the Profiler
             try {
                 artifactIDs = (List<Integer>)msg.getContentObject();
@@ -171,7 +171,7 @@ public class PlatformAgent extends Agent {
 
         @Override
         public void action() {
-            System.out.println("(Platform) Gonna send some IDs back");
+            //System.out.println("(Platform) Gonna send some IDs back");
             // send the first message to the Curator to ask for interesting artifacts
             ACLMessage result = new ACLMessage(ACLMessage.INFORM);
             result.addReceiver(profiler);
