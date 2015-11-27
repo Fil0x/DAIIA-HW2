@@ -126,6 +126,9 @@ public class ArtifactManagerAgent extends Agent {
 
         @Override
         public void action() {
+            for(int i = 0 ; i < buyers.size() ; i++){
+                blockingReceive()
+            }
             ACLMessage msg = new ACLMessage(ACLMessage.CFP);
             msg.setSender(getAgent().getAID());
             msg.setContent("call-for-proposal");
