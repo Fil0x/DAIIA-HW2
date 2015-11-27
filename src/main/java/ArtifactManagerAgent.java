@@ -16,10 +16,29 @@ import java.util.List;
 
 public class ArtifactManagerAgent extends Agent {
 
-    private ArrayList<AID> buyers;
-    private int SPAWN_TIME = 3000;
+    private final int SPAWN_TIME = 15000;
     private static final String NAME = "(ArtifactManager)";
     private FSMBehaviour fsm;
+    //0
+    private static final String START_AUCTION = "A";
+    //1
+    private static final String CFP = "B";
+    //2
+    private static final String WAIT_FOR_BIDS = "C";
+    //3
+    private static final String COMPLETE_AUCTION = "D";
+
+    //State
+    private ArrayList<AID> buyers;
+    private float lastProposedPrice;
+    private float leastAcceptablePrice;
+
+    //Boolean for both accept bid and no bids (in end of WAIT_FOR_BIDS false, go to CFP)
+    private boolean proposalAccepted;
+    private Artifact itemToSell;
+
+
+
 
     public ArtifactManagerAgent() {
         super();
@@ -47,13 +66,17 @@ public class ArtifactManagerAgent extends Agent {
 
         @Override
         protected void onTick() {
-            // Start a new auction
-          //  getAgent().addBehaviour(new StartAuction());
             fsm = new FSMBehaviour();
-            fsm.registerFirstState(new StartAuction(getAgent()), "A");
-            fsm.registerLastState(new CallForProposal(getAgent()), "B");
+            fsm.registerFirstState(new StartAuction(getAgent()), START_AUCTION);
+            fsm.registerState(new CallForProposal(getAgent()), CFP);
+            fsm.registerState(new WaitForBidOrRejects(), WAIT_FOR_BIDS);
+            fsm.registerLastState(new CompleteAuction(), COMPLETE_AUCTION);
 
-            fsm.registerDefaultTransition("A", "B");
+            fsm.registerDefaultTransition(START_AUCTION, CFP);
+            fsm.registerTransition(CFP,WAIT_FOR_BIDS,2);
+            fsm.registerTransition(WAIT_FOR_BIDS, COMPLETE_AUCTION, 3);
+            fsm.registerTransition(CFP, COMPLETE_AUCTION, 3);
+            fsm.registerTransition(WAIT_FOR_BIDS, CFP, 1);
 
             getAgent().addBehaviour(fsm);
         }
@@ -106,7 +129,50 @@ public class ArtifactManagerAgent extends Agent {
             ACLMessage msg = new ACLMessage(ACLMessage.CFP);
             msg.setSender(getAgent().getAID());
             msg.setContent("call-for-proposal");
-            msg.setProtocol();
+        }
+
+        @Override
+        public int onEnd(){
+            //TODO
+            //if lowest acceptable price wasn't accepted,
+            //return 3 COMPLETE_AUCTION
+
+            //else (auction still ongoing)
+            //return 2 WAIT_FOR_BIDS
+            return -1;
+        }
+    }
+
+    private class WaitForBidOrRejects extends OneShotBehaviour{
+
+        @Override
+        public void action() {
+            for (int i = 0; i< buyers.size(); i++){
+                ACLMessage msg = blockingReceive();
+                //Set state complete auction or new bid or finished.
+            }
+
+        }
+
+        @Override
+        public int onEnd(){
+            //TODO
+            //If bid accepted, return 3 AUCTION_COMPLETE
+
+            //Else return 1 CFP
+            return -1;
+        }
+    }
+
+    private class CompleteAuction extends OneShotBehaviour{
+
+        @Override
+        public void action() {
+
+            //if lowest price hit, inform everyone auction closed
+
+            //if someone bid, inform winner and everyone else auction closed
+
         }
     }
 }
