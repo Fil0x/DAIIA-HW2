@@ -1,5 +1,6 @@
 import java.io.Serializable;
 import java.util.Date;
+import java.util.Random;
 
 /*
  Represents a single artifact which contains all the relevant information.
@@ -12,6 +13,7 @@ public class Artifact implements Serializable{
     private Date creationDate;
     private String placeOfCreation;
     private String genre;
+    private int price;
 
     public Artifact(int id, String name, String creator, Date creationDate,
                     String placeOfCreation, String genre) {
@@ -22,6 +24,7 @@ public class Artifact implements Serializable{
         this.creationDate = creationDate;
         this.placeOfCreation = placeOfCreation;
         this.genre = genre;
+        this.price = new Random().nextInt(5000) + 1000;
     }
 
     public Date getCreationDate() {
@@ -70,5 +73,13 @@ public class Artifact implements Serializable{
 
     public void setGenre(String genre) {
         this.genre = genre;
+    }
+
+    public int getPrice() {
+        return price;
+    }
+
+    public void setPrice(int price) {
+        this.price = price;
     }
 }

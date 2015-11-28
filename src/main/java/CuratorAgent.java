@@ -3,14 +3,13 @@ import jade.core.Agent;
 import jade.core.behaviours.FSMBehaviour;
 import jade.core.behaviours.OneShotBehaviour;
 import jade.domain.DFService;
-import jade.domain.FIPAAgentManagement.DFAgentDescription;
-import jade.domain.FIPAAgentManagement.Envelope;
-import jade.domain.FIPAAgentManagement.ServiceDescription;
+import jade.domain.FIPAAgentManagement.*;
 import jade.domain.FIPAException;
 import jade.domain.FIPANames;
 import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import jade.lang.acl.UnreadableException;
+import jade.proto.ContractNetResponder;
 import jade.proto.SimpleAchieveREResponder;
 
 import java.io.IOException;
@@ -31,7 +30,9 @@ public class CuratorAgent extends Agent {
         super();
 
         MessageTemplate mtartifact = MessageTemplate.MatchProtocol(FIPANames.InteractionProtocol.FIPA_REQUEST);
-        MessageTemplate mtauction = MessageTemplate.MatchProtocol(FIPANames.InteractionProtocol.FIPA_DUTCH_AUCTION);
+        MessageTemplate mtauction = MessageTemplate.and(
+                MessageTemplate.MatchProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET),
+                MessageTemplate.MatchPerformative(ACLMessage.CFP));
 
         addBehaviour(new ArtifactRequestREResponder(this, mtartifact));
         addBehaviour(new AuctionREResponder(this, mtauction));
@@ -130,49 +131,47 @@ public class CuratorAgent extends Agent {
         }
     }
 
-    private class AuctionREResponder extends SimpleAchieveREResponder{
-
-        private MessageTemplate mt;
-
+    private class AuctionREResponder extends ContractNetResponder {
         public AuctionREResponder(Agent a, MessageTemplate mt) {
             super(a, mt);
-            this.mt = mt;
         }
 
-        protected ACLMessage prepareResponse(ACLMessage request){
-            //first message is a start auction message
-            AID auctioneer = request.getSender();
-
-            //send confirm
-            ACLMessage interested = new ACLMessage(ACLMessage.AGREE);
-            interested.addReceiver(auctioneer);
-            send(interested);
-
-            //handle CFP
-            ACLMessage cfpOrComplete;
-            while(true) {
-                cfpOrComplete = blockingReceive(mt);
-                String comments = cfpOrComplete.getEnvelope().getComments();
-                if("cfp".equals(comments)){
-                    System.out.println(NAME + " got cfp");
-                    ACLMessage bidOrReject = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
-                    send(bidOrReject);
-                } else if ("win".equals(comments)) {
-                    break;
-                } else if ("end".equals(comments)){
-                    break;
-                }
+        @Override
+        protected ACLMessage handleCfp(ACLMessage cfp) throws NotUnderstoodException, RefuseException {
+            System.out.println("Agent "+getLocalName()+": CFP received from "+cfp.getSender().getName()); //+". Action is "+cfp.getContent());
+            int proposal = 3;
+            if (proposal > 2) {
+                // We provide a proposal
+                System.out.println("Agent "+getLocalName()+": Proposing "+proposal);
+                ACLMessage propose = cfp.createReply();
+                propose.setPerformative(ACLMessage.PROPOSE);
+                propose.setContent(String.valueOf(proposal));
+                return propose;
             }
-
-            //handle end
-
-            ACLMessage reply = request.createReply();
-            return reply;
+            else {
+                // We refuse to provide a proposal
+                System.out.println("Agent "+getLocalName()+": Refuse");
+                throw new RefuseException("evaluation-failed");
+            }
         }
 
+        @Override
+        protected ACLMessage handleAcceptProposal(ACLMessage cfp, ACLMessage propose,ACLMessage accept) throws FailureException {
+            System.out.println("Agent "+getLocalName()+": Proposal accepted");
+            if (true) {
+                System.out.println("Agent "+getLocalName()+": Action successfully performed");
+                ACLMessage inform = accept.createReply();
+                inform.setPerformative(ACLMessage.INFORM);
+                return inform;
+            }
+            else {
+                System.out.println("Agent "+getLocalName()+": Action execution failed");
+                throw new FailureException("unexpected-error");
+            }
+        }
 
-        protected ACLMessage prepareResultNotification(ACLMessage request, ACLMessage response) {
-            return null;
+        protected void handleRejectProposal(ACLMessage cfp, ACLMessage propose, ACLMessage reject) {
+            System.out.println("Agent "+getLocalName()+": Proposal rejected");
         }
     }
 }

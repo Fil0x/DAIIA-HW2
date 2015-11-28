@@ -10,9 +10,13 @@ import jade.domain.FIPAAgentManagement.ServiceDescription;
 import jade.domain.FIPAException;
 import jade.domain.FIPANames;
 import jade.lang.acl.ACLMessage;
+import jade.proto.ContractNetInitiator;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.Vector;
 
 public class ArtifactManagerAgent extends Agent {
 
@@ -24,21 +28,18 @@ public class ArtifactManagerAgent extends Agent {
     //1
     private static final String CFP = "B";
     //2
-    private static final String WAIT_FOR_BIDS = "C";
-    //3
-    private static final String COMPLETE_AUCTION = "D";
+    private static final String COMPLETE_AUCTION = "C";
 
     //State
     private ArrayList<AID> buyers;
     private float lastProposedPrice;
     private float leastAcceptablePrice;
+    private int nResponders;
+    private ACLMessage msgToSend;
 
     //Boolean for both accept bid and no bids (in end of WAIT_FOR_BIDS false, go to CFP)
     private boolean proposalAccepted;
     private Artifact itemToSell;
-
-
-
 
     public ArtifactManagerAgent() {
         super();
@@ -68,15 +69,11 @@ public class ArtifactManagerAgent extends Agent {
         protected void onTick() {
             fsm = new FSMBehaviour();
             fsm.registerFirstState(new StartAuction(getAgent()), START_AUCTION);
-            fsm.registerState(new CallForProposal(getAgent()), CFP);
-            fsm.registerState(new WaitForBidOrRejects(), WAIT_FOR_BIDS);
+            fsm.registerState(new HandleAuction(getAgent(), msgToSend), CFP);
             fsm.registerLastState(new CompleteAuction(), COMPLETE_AUCTION);
 
             fsm.registerDefaultTransition(START_AUCTION, CFP);
-            fsm.registerTransition(CFP,WAIT_FOR_BIDS,2);
-            fsm.registerTransition(WAIT_FOR_BIDS, COMPLETE_AUCTION, 3);
-            fsm.registerTransition(CFP, COMPLETE_AUCTION, 3);
-            fsm.registerTransition(WAIT_FOR_BIDS, CFP, 1);
+            fsm.registerDefaultTransition(CFP, COMPLETE_AUCTION);
 
             getAgent().addBehaviour(fsm);
         }
@@ -101,69 +98,86 @@ public class ArtifactManagerAgent extends Agent {
                 dfd.addServices(sd);
                 DFAgentDescription[] result = DFService.search(getAgent(), dfd);
                 // Create a new message to broadcast to the interested bidders
-                ACLMessage msg = new ACLMessage(ACLMessage.INFORM);
+                ACLMessage msg = new ACLMessage(ACLMessage.CFP);
                 msg.setSender(getAID());
-                msg.setContent("inform-start-of-auction");
-                msg.setProtocol(FIPANames.InteractionProtocol.FIPA_DUTCH_AUCTION);
+                msg.setContentObject(Utilities.getArtifact());
+                msg.setProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET);
                 if (result.length>0) {
+                    nResponders = result.length;
                     for(DFAgentDescription r: result) {
                         msg.addReceiver(r.getName());
                         buyers.add(r.getName());
                     }
+                    msgToSend = msg;
                 }
-                send(msg);
-        } catch (FIPAException e) {
+            } catch (FIPAException e) {
+                    e.printStackTrace();
+            } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private class CallForProposal extends OneShotBehaviour {
+    private class HandleAuction extends ContractNetInitiator {
 
-        public CallForProposal(Agent a) {
-            super(a);
+        public HandleAuction(Agent a, ACLMessage cfp) {
+            super(a, cfp);
         }
 
-        @Override
-        public void action() {
-            for(int i = 0 ; i < buyers.size() ; i++){
-                blockingReceive()
+        protected void handlePropose(ACLMessage propose, Vector v) {
+            System.out.println("Agent "+propose.getSender().getName()+" proposed "+propose.getContent());
+        }
+
+        protected void handleRefuse(ACLMessage refuse) {
+            System.out.println("Agent "+refuse.getSender().getName()+" refused");
+        }
+
+        protected void handleFailure(ACLMessage failure) {
+            if (failure.getSender().equals(myAgent.getAMS())) {
+                // FAILURE notification from the JADE runtime: the receiver
+                // does not exist
+                System.out.println("Responder does not exist");
             }
-            ACLMessage msg = new ACLMessage(ACLMessage.CFP);
-            msg.setSender(getAgent().getAID());
-            msg.setContent("call-for-proposal");
-        }
-
-        @Override
-        public int onEnd(){
-            //TODO
-            //if lowest acceptable price wasn't accepted,
-            //return 3 COMPLETE_AUCTION
-
-            //else (auction still ongoing)
-            //return 2 WAIT_FOR_BIDS
-            return -1;
-        }
-    }
-
-    private class WaitForBidOrRejects extends OneShotBehaviour{
-
-        @Override
-        public void action() {
-            for (int i = 0; i< buyers.size(); i++){
-                ACLMessage msg = blockingReceive();
-                //Set state complete auction or new bid or finished.
+            else {
+                System.out.println("Agent "+failure.getSender().getName()+" failed");
             }
-
+            // Immediate failure --> we will not receive a response from this agent
+            nResponders--;
         }
 
-        @Override
-        public int onEnd(){
-            //TODO
-            //If bid accepted, return 3 AUCTION_COMPLETE
+        protected void handleAllResponses(Vector responses, Vector acceptances) {
+            if (responses.size() < nResponders) {
+                // Some responder didn't reply within the specified timeout
+                System.out.println("Timeout expired: missing "+(nResponders - responses.size())+" responses");
+            }
+            // Evaluate proposals.
+            int bestProposal = -1;
+            AID bestProposer = null;
+            ACLMessage accept = null;
+            Enumeration e = responses.elements();
+            while (e.hasMoreElements()) {
+                ACLMessage msg = (ACLMessage) e.nextElement();
+                if (msg.getPerformative() == ACLMessage.PROPOSE) {
+                    ACLMessage reply = msg.createReply();
+                    reply.setPerformative(ACLMessage.REJECT_PROPOSAL);
+                    acceptances.addElement(reply);
+                    int proposal = Integer.parseInt(msg.getContent());
+                    if (proposal > bestProposal) {
+                        bestProposal = proposal;
+                        bestProposer = msg.getSender();
+                        accept = reply;
+                    }
+                }
+            }
+            // Accept the proposal of the best proposer
+            if (accept != null) {
+                System.out.println("Accepting proposal "+bestProposal+" from responder "+bestProposer.getName());
+                accept.setPerformative(ACLMessage.ACCEPT_PROPOSAL);
+            }
+        }
 
-            //Else return 1 CFP
-            return -1;
+        protected void handleInform(ACLMessage inform) {
+            System.out.println("Agent "+inform.getSender().getName()+" successfully performed the requested action");
         }
     }
 
