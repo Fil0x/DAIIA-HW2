@@ -6,7 +6,7 @@
 \usepackage{caption}
 \usepackage{subcaption}
 
-\title{\textbf{Distributed Artificial Intelligence and Intelligent Agents Homework 1}}
+\title{Distributed Artificial Intelligence and Intelligent Agents Homework 2}
 \author{KTH Royal Institute of Technology \\ 
 		School of Information and Communication Technology \\
 		Student:Fanti Machmount Al Samisti (fmas@kth.se) \\
@@ -16,55 +16,48 @@
 	
 \maketitle
 
-\section{Introduction}
-The purpose of this lab was to learn the basics of the Java Agent Development framework by implementing a three-agent solution for the case of tourists asking for interesting museum artifacts to see. Our solution implemnts several simple and advanced behaviors to achieve this. 
+\section{Task1: Personalized Virtual Tour}
 
-This report serves primarily as an explanation of our solution, and some reasoning behind. Attached is all source code with descriptional comments.
+The personalized virtual tour was already implemented and explained in detail in the previous homework. 
 
-\section{Agents and Behaviors}
+\section{Task2: Dutch Auction}
+
+The dutch auction protocol was implemented using a OneShotBehavior for starting the auction, and ContractNetInitiator/Responder for the main auction interaction. We implemented the artist manager - curator interaction.
+
+After the initial start-auction message sent to every agent registered as a "potential bidder", the bidders respond and the auction is on its way.
+
+Every round of the auction a Call for Proposal is sent out from the auctioneer. Each interested agent evaluates the current price, and responds with either a bid for that amount or with a rejected message. As soon as the auctioneer has received at least one bid a winner is selected and corresponding "win" and "loose" messages are sent.
+
+\subsection{Running the Code}
+\begin{verbatim}
+java -cp "/Location/of/jade.jar" -jade.Boot \\
+-gui -agents -gui -agents \\
+profiler:ProfilerAgent;platform:PlatformAgent;curator:CuratorAgent
+\end{verbatim}
+Then use the graphical interface to add more profilers as you please, to make the auctions more interesting.
+
+\section{Task3: Nash Equilibrium}
+There were multiple potential games to consider for Nash Equilibria. The one most related to our implementation was the Artist Manager vs. Curator game of price setting. 
+The two variables regarded were price and quality of the product, and the outcomes and Nash Equilibria can be found in \ref{fig:results1}. We assumed the curator disregarded the demand of the item.
+
 \begin{figure}
 	\begin{center}
-		\includegraphics[width=\textwidth]{agentsandbehaviors.jpg}
-		\caption{An overview of available agents and implemented behavior types}
+		\includegraphics[width=\textwidth]{artistvscurator.jpg}
+		\caption{Payoff Matrix and Nash Equilibria for Artist vs. Curator}
 		\label{fig:results1}
 	\end{center}
 \end{figure}
-\subsection{ProfilerAgent}
-The job of the profiler agent is to serve a tourist wanting to exhibit some available museum artifacts according to his interests. The profiler communicates with the platform to get a list of interesting artifacts, and with the curator to get detailed descriptions for those IDs.
 
-To accomplish this our profiler agent implements three main behaviors.
-\begin{enumerate}
-\item RequestTourGuide(OneShotBehavior) Sends a request for artifact IDs to the platform.
-\item WaitArtifactIDsFromPlatform(MsgReceiver) Waits for a message containing the platform IDs from the platform
-\item AskCuratorForArtifacts(SimpleAchieveREInitiator) Interacts with the curator to get detailed information for IDs received from the platform.
-\end{enumerate}
+We also defined a payoff matrix for the game Curator vs. Profiler. We did not regard the purchasing price of the item on the curator side, only the quality of the item and the paid price of the profiler (including no payment). The payoff matrix can be found in \ref{fig:results2}.
 
-The profiler wraps these three behaviors in a SequentialBehavior inside a TickerBehavior (TourSpawner). The ticker spawns a new interaction with a timer to simulate multiple tourists. At each tick, a sequential behavior is added to the agent with the previously described behaviors in the sequence presented. A tourist requests tour, the profiler sends a request to the platform for artifacts matching the tourist interests, waits for a reply and then uses the IDs in the reply to ask the curator for artifacts descriptions.
+\begin{figure}
+	\begin{center}
+		\includegraphics[width=\textwidth]{curatorvsprofiler.jpg}
+		\caption{Payoff Matrix and Nash Equilibria for Curator vs. Profiler}
+		\label{fig:results2}
+	\end{center}
+\end{figure}
 
-\subsection{PlatformAgent}
-The platform agent serves profilers lists of interesting artifacts by querying the curator. It implements three different behaviors fit inside an FSMBehavior.
+Both payoff matrices seem flawed since the curator should care about demand when buying art and when setting price for viewing. Despite several tries we did not manage to model this appropriately.
 
-\begin{enumerate}
-\item WaitRequestsFromProfiler(MsgReceiver) Wait for requests from a profiler for artifact IDs.
-\item AskCurator(SimpleAchieveREInitiator) Interacts with the curator to get a list of available artifacts given interests provided by the profiler 
-\item SendItemIDs(OneShotBehavior) Sends the list of available artifacts back to the profiler.
-\end{enumerate}
-
-Each behavior stores information in member variables for the next behavior to use. Allowed transitions are 1 to 2, 2 to 3 and 3 to 1, in a cycle. The MsgReceiver stores the requesting agent and the list of interests, the REInitiator stores the 
-artifact IDs and the OneShotBehavior sends the artifact IDs back to the requesting agent.
-
-\subsection{CuratorAgent}
-The curator agent responds to requests from either platforms or profilers. It only implements one behavior ArtifactRequestREResponder. Using comments on envelopes wrapped around incoming requests for artifact IDs for interests (from platform), or requests for artifact descriptions given artifact IDs (from profiler) we determine how to respond.
-
-This ArtifactRequestREResponder behavior is wrapped in an FSM with only one cyclic state.
-
-\section{Directory Facilitator}
-We use the Directory Facilitator for agents to discover each other.
-
-A curator agent registers two available services: "artifact-search" for requests for artifacts given interests, and "artifact-lookup" for requests for artifact descriptions given a list of artifacts. A platform registers one available service: "provide-tour" for requests for artifacts given interests.
-
-When sending requests, the DF is queried for a list of available agents for the given service. In our implementation we assume one agent of each type, so we use the first agent in the list. For multiple platforms, the implementation of the profiler could be to extended to query all platforms registered using the first reply, to improve the experience for the tourist.
-
-\section{Evaluation}
-The lab served its purpose of giving an good overview of JADE. Once the first hurdles of understanding how agents schedule behaviors and how REInitiators/REResponders work, it turned out to be quite achievable.
 \end{document}
