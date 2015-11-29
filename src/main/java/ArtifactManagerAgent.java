@@ -1,3 +1,4 @@
+import com.sun.org.apache.xpath.internal.SourceTree;
 import jade.core.AID;
 import jade.core.Agent;
 import jade.core.behaviours.FSMBehaviour;
@@ -18,9 +19,13 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Vector;
 
+
+/*
+For some reason the next iteration sees the previous state/variables.
+ */
 public class ArtifactManagerAgent extends Agent {
 
-    private final int SPAWN_TIME = 15000;
+    private final int SPAWN_TIME = 10000;
     private static final String NAME = "(ArtifactManager)";
     private FSMBehaviour fsm;
     //0
@@ -32,13 +37,11 @@ public class ArtifactManagerAgent extends Agent {
 
     //State
     private ArrayList<AID> buyers;
-    private float lastProposedPrice;
-    private float leastAcceptablePrice;
+    private int leastAcceptablePrice;
+    private int reductionStep;
+    private int round;
     private int nResponders;
     private ACLMessage msgToSend;
-
-    //Boolean for both accept bid and no bids (in end of WAIT_FOR_BIDS false, go to CFP)
-    private boolean proposalAccepted;
     private Artifact itemToSell;
 
     public ArtifactManagerAgent() {
@@ -68,6 +71,7 @@ public class ArtifactManagerAgent extends Agent {
         @Override
         protected void onTick() {
             fsm = new FSMBehaviour();
+            fsm = new FSMBehaviour();
             fsm.registerFirstState(new StartAuction(getAgent()), START_AUCTION);
             fsm.registerState(new HandleAuction(getAgent(), msgToSend), CFP);
             fsm.registerLastState(new CompleteAuction(), COMPLETE_AUCTION);
@@ -87,10 +91,17 @@ public class ArtifactManagerAgent extends Agent {
         @Override
         public void action() {
             try {
+                System.out.println("---------------------" + NAME + "---------------------");
                 System.out.println(NAME + ": soon starting a new dutch auction");
+                // Initialize the state variables
                 buyers = new ArrayList<>();
+                itemToSell = Utilities.getArtifact();
+                leastAcceptablePrice = (int) (itemToSell.getPrice() * 0.4);
+                round = 1;
+                reductionStep = (int) (0.1 * itemToSell.getPrice());
+                System.out.println(NAME + ": " + itemToSell.getName() + "@" + itemToSell.getPrice());
                 // Wait for the other agents to boot
-                doWait(100);
+                doWait(1000);
                 // Get the interested buyers-curators
                 DFAgentDescription dfd = new DFAgentDescription();
                 ServiceDescription sd = new ServiceDescription();
@@ -98,17 +109,17 @@ public class ArtifactManagerAgent extends Agent {
                 dfd.addServices(sd);
                 DFAgentDescription[] result = DFService.search(getAgent(), dfd);
                 // Create a new message to broadcast to the interested bidders
-                ACLMessage msg = new ACLMessage(ACLMessage.CFP);
-                msg.setSender(getAID());
-                msg.setContentObject(Utilities.getArtifact());
-                msg.setProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET);
+                msgToSend = new ACLMessage(ACLMessage.CFP);
+                msgToSend.setSender(getAID());
+                msgToSend.setContentObject(itemToSell);
+                msgToSend.setProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET);
                 if (result.length>0) {
+                    System.out.println(NAME + ": Found " + result.length + " bidders");
                     nResponders = result.length;
                     for(DFAgentDescription r: result) {
-                        msg.addReceiver(r.getName());
+                        msgToSend.addReceiver(r.getName());
                         buyers.add(r.getName());
                     }
-                    msgToSend = msg;
                 }
             } catch (FIPAException e) {
                     e.printStackTrace();
@@ -125,11 +136,11 @@ public class ArtifactManagerAgent extends Agent {
         }
 
         protected void handlePropose(ACLMessage propose, Vector v) {
-            System.out.println("Agent "+propose.getSender().getName()+" proposed "+propose.getContent());
+            System.out.println(NAME + ": Agent "+propose.getSender().getName()+" proposed "+propose.getContent());
         }
 
         protected void handleRefuse(ACLMessage refuse) {
-            System.out.println("Agent "+refuse.getSender().getName()+" refused");
+            System.out.println(NAME + ": Agent "+refuse.getSender().getName()+" refused");
         }
 
         protected void handleFailure(ACLMessage failure) {
@@ -150,9 +161,9 @@ public class ArtifactManagerAgent extends Agent {
                 // Some responder didn't reply within the specified timeout
                 System.out.println("Timeout expired: missing "+(nResponders - responses.size())+" responses");
             }
-            // Evaluate proposals.
-            int bestProposal = -1;
-            AID bestProposer = null;
+            // Evaluate proposals
+            double bestProposal = -1;
+            AID winner = null;
             ACLMessage accept = null;
             Enumeration e = responses.elements();
             while (e.hasMoreElements()) {
@@ -161,23 +172,47 @@ public class ArtifactManagerAgent extends Agent {
                     ACLMessage reply = msg.createReply();
                     reply.setPerformative(ACLMessage.REJECT_PROPOSAL);
                     acceptances.addElement(reply);
-                    int proposal = Integer.parseInt(msg.getContent());
+                    double proposal = Double.parseDouble(msg.getContent());
                     if (proposal > bestProposal) {
                         bestProposal = proposal;
-                        bestProposer = msg.getSender();
+                        winner = msg.getSender();
                         accept = reply;
                     }
                 }
             }
             // Accept the proposal of the best proposer
             if (accept != null) {
-                System.out.println("Accepting proposal "+bestProposal+" from responder "+bestProposer.getName());
+                System.out.println(NAME + ": Accepting proposal "+bestProposal+" from responder "+winner.getName());
                 accept.setPerformative(ACLMessage.ACCEPT_PROPOSAL);
+            }
+            else {
+                // Create a new message to broadcast to the interested bidders
+                // ACLMessage msg = new ACLMessage(ACLMessage.CFP);
+                // msg.setSender(getAID());
+//                try {
+                    // Reduce the price by 10%
+                    System.out.println("~~~~REDUCING~~~~" + NAME + "~~~~PRICE~~~~");
+                    int newPrice = itemToSell.getPrice() - reductionStep;
+                    itemToSell.setPrice(newPrice);
+                    System.out.println(NAME + ": Price " + itemToSell.getPrice());
+                    // msg.setContentObject(itemToSell);
+                // } catch (IOException e1) {
+//                    e1.printStackTrace();
+//                }
+//                msg.setProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET);
+                // Assume that the bidders are the same as before
+                Vector msgs = new Vector();
+                for(AID b: buyers) {
+//                    msg.addReceiver(b);
+                    msgs.add(msgToSend);
+                }
+                newIteration(msgs);
             }
         }
 
         protected void handleInform(ACLMessage inform) {
-            System.out.println("Agent "+inform.getSender().getName()+" successfully performed the requested action");
+            System.out.println("Agent "+inform.getSender().getName()+" is the winner of the auction!");
+            System.out.println("Agent "+inform.getSender().getName()+" Item:" + itemToSell.getName() + "@" + itemToSell.getPrice());
         }
     }
 
@@ -185,11 +220,7 @@ public class ArtifactManagerAgent extends Agent {
 
         @Override
         public void action() {
-
-            //if lowest price hit, inform everyone auction closed
-
-            //if someone bid, inform winner and everyone else auction closed
-
+            System.out.println(NAME + ": Auction Completed.");
         }
     }
 }

@@ -15,10 +15,11 @@ import jade.proto.SimpleAchieveREResponder;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
+import java.util.Random;
 
 
 public class CuratorAgent extends Agent {
-    private static final String NAME = "(curator)";
+    private static final String NAME = "(Curator)";
 
     private String senderType;
     private AID sender;
@@ -132,17 +133,30 @@ public class CuratorAgent extends Agent {
     }
 
     private class AuctionREResponder extends ContractNetResponder {
+
+        private final double BID_MARGIN = 0.1;
+
         public AuctionREResponder(Agent a, MessageTemplate mt) {
             super(a, mt);
         }
 
         @Override
         protected ACLMessage handleCfp(ACLMessage cfp) throws NotUnderstoodException, RefuseException {
-            System.out.println("Agent "+getLocalName()+": CFP received from "+cfp.getSender().getName()); //+". Action is "+cfp.getContent());
-            int proposal = 3;
-            if (proposal > 2) {
+            System.out.println("Agent "+getLocalName()+": CFP received from "+cfp.getSender().getName());
+            double proposal = new Random().nextDouble();
+            if (proposal < BID_MARGIN) {
+                // Retrieve the item and its price
+                int price = 0;
+                String name = "";
+                try {
+                    Artifact a = (Artifact) cfp.getContentObject();
+                    name = a.getName();
+                    price = a.getPrice();
+                } catch (UnreadableException e) {
+                    e.printStackTrace();
+                }
                 // We provide a proposal
-                System.out.println("Agent "+getLocalName()+": Proposing "+proposal);
+                System.out.println("Agent "+getLocalName()+": Proposing " + proposal + " Item:" +  name + "@" + price);
                 ACLMessage propose = cfp.createReply();
                 propose.setPerformative(ACLMessage.PROPOSE);
                 propose.setContent(String.valueOf(proposal));
@@ -156,18 +170,12 @@ public class CuratorAgent extends Agent {
         }
 
         @Override
-        protected ACLMessage handleAcceptProposal(ACLMessage cfp, ACLMessage propose,ACLMessage accept) throws FailureException {
-            System.out.println("Agent "+getLocalName()+": Proposal accepted");
-            if (true) {
-                System.out.println("Agent "+getLocalName()+": Action successfully performed");
-                ACLMessage inform = accept.createReply();
-                inform.setPerformative(ACLMessage.INFORM);
-                return inform;
-            }
-            else {
-                System.out.println("Agent "+getLocalName()+": Action execution failed");
-                throw new FailureException("unexpected-error");
-            }
+        protected ACLMessage handleAcceptProposal(ACLMessage cfp, ACLMessage propose,ACLMessage accept) {
+            System.out.println("Agent "+getLocalName()+": I won the auction");
+            System.out.println("Agent "+getLocalName()+": Action successfully performed");
+            ACLMessage inform = accept.createReply();
+            inform.setPerformative(ACLMessage.INFORM);
+            return inform;
         }
 
         protected void handleRejectProposal(ACLMessage cfp, ACLMessage propose, ACLMessage reject) {
