@@ -41,7 +41,7 @@ public class ArtifactManagerAgent extends Agent {
     private int reductionStep;
     private int round;
     private int nResponders;
-    private ACLMessage msgToSend;
+    private volatile ACLMessage msgToSend;
     private Artifact itemToSell;
 
     public ArtifactManagerAgent() {
@@ -52,6 +52,8 @@ public class ArtifactManagerAgent extends Agent {
 
     protected void setup() {
         System.out.println("Agent:" + getAID().getName() + " is ready!");
+        // Initialize the mesage only once
+        msgToSend = new ACLMessage(ACLMessage.CFP);
     }
 
     protected void takeDown() {
@@ -71,7 +73,7 @@ public class ArtifactManagerAgent extends Agent {
         @Override
         protected void onTick() {
             fsm = new FSMBehaviour();
-            fsm = new FSMBehaviour();
+
             fsm.registerFirstState(new StartAuction(getAgent()), START_AUCTION);
             fsm.registerState(new HandleAuction(getAgent(), msgToSend), CFP);
             fsm.registerLastState(new CompleteAuction(), COMPLETE_AUCTION);
@@ -109,10 +111,10 @@ public class ArtifactManagerAgent extends Agent {
                 dfd.addServices(sd);
                 DFAgentDescription[] result = DFService.search(getAgent(), dfd);
                 // Create a new message to broadcast to the interested bidders
-                msgToSend = new ACLMessage(ACLMessage.CFP);
                 msgToSend.setSender(getAID());
                 msgToSend.setContentObject(itemToSell);
                 msgToSend.setProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET);
+                msgToSend.clearAllReceiver();
                 if (result.length>0) {
                     System.out.println(NAME + ": Found " + result.length + " bidders");
                     nResponders = result.length;
@@ -186,27 +188,26 @@ public class ArtifactManagerAgent extends Agent {
                 accept.setPerformative(ACLMessage.ACCEPT_PROPOSAL);
             }
             else {
-                // Create a new message to broadcast to the interested bidders
-                // ACLMessage msg = new ACLMessage(ACLMessage.CFP);
-                // msg.setSender(getAID());
-//                try {
-                    // Reduce the price by 10%
+                int newPrice = itemToSell.getPrice() - reductionStep;
+                if(newPrice < leastAcceptablePrice) {
+                    System.out.println(String.format("%s: New price(%d), Lowest price(%d)", NAME, newPrice, leastAcceptablePrice));
+                    System.out.println(NAME + ": Terminating auction...");
+                }
+                else {
                     System.out.println("~~~~REDUCING~~~~" + NAME + "~~~~PRICE~~~~");
-                    int newPrice = itemToSell.getPrice() - reductionStep;
+
                     itemToSell.setPrice(newPrice);
                     System.out.println(NAME + ": Price " + itemToSell.getPrice());
-                    // msg.setContentObject(itemToSell);
-                // } catch (IOException e1) {
-//                    e1.printStackTrace();
-//                }
-//                msg.setProtocol(FIPANames.InteractionProtocol.FIPA_ITERATED_CONTRACT_NET);
-                // Assume that the bidders are the same as before
-                Vector msgs = new Vector();
-                for(AID b: buyers) {
-//                    msg.addReceiver(b);
+                    Vector msgs = new Vector();
+                    try {
+                        msgToSend.setContentObject(itemToSell);
+                    } catch (IOException e1) {
+                        e1.printStackTrace();
+                    }
                     msgs.add(msgToSend);
+
+                    newIteration(msgs);
                 }
-                newIteration(msgs);
             }
         }
 
